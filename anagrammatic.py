@@ -1,7 +1,10 @@
+import os
 from flask import Flask, render_template, request, jsonify
 import random
 
 app = Flask(__name__)
+app.config['ENV'] = os.environ.get('FLASK_ENV', 'development')
+app.config['DEBUG'] = app.config['ENV'] == 'development'
 
 # Load words from a file
 def load_words():
@@ -101,5 +104,26 @@ def check_word():
     else:
         return create_response("invalid", "Words must be at least 3 letters long")
 
+@app.route('/new-game', methods=['POST'])
+def new_game():
+    global nine_letter_word, letters, CURRENT_LETTERS, found_words, score
+    
+    # Get a new word and reset game state
+    nine_letter_word = get_nine_letter_word(word_list)
+    letters = list(nine_letter_word)
+    random.shuffle(letters)
+    CURRENT_LETTERS = ''.join(letters).upper()
+    found_words = set()
+    score = 0
+    
+    return jsonify({
+        'letters': CURRENT_LETTERS,
+        'score': score,
+        'foundWords': list(found_words)
+    })
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Only use debug mode when running locally
+    app.run(host='0.0.0.0', 
+           port=int(os.environ.get('PORT', 10000)),
+           debug=app.config['DEBUG'])

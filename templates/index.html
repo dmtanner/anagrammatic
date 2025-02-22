@@ -149,6 +149,14 @@
             font-size: 0.9rem;
             line-height: 1.6;
         }
+
+        .new-game-btn {
+            background-color: #10b981;  /* emerald-500 */
+        }
+
+        .new-game-btn:hover {
+            background-color: #059669;  /* emerald-600 */
+        }
     </style>
     <script>
         let availableLetters = [];
@@ -304,6 +312,25 @@
             initializeLetters();  // Reinitialize letter elements after shuffle
             updateAvailableLetters(document.getElementById("wordInput").value);
         }
+
+        async function newGame() {
+            const response = await fetch("/new-game", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            const result = await response.json();
+            
+            // Update UI with new game state
+            document.getElementById("letters").textContent = result.letters;
+            document.getElementById("score").innerText = result.score;
+            document.getElementById("result").innerText = "";
+            document.getElementById("result").style.backgroundColor = "#f1f5f9";
+            document.getElementById("wordInput").value = "";
+            
+            // Reinitialize letters display
+            initializeLetters();
+            updateFoundWords(result.foundWords);
+        }
     </script>
 </head>
 <body>
@@ -316,6 +343,7 @@
             <input type="text" id="wordInput" placeholder="Enter a word" autocomplete="off">
             <button onclick="submitWord()">Submit</button>
             <button onclick="shuffleLetters()">Shuffle</button>
+            <button onclick="newGame()" class="new-game-btn">New Game</button>
         </div>
         <p id="result"></p>
         <div id="foundWords" class="found-words"></div>

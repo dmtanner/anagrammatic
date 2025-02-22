@@ -1,7 +1,6 @@
-
 __pycache__/
 *.py[cod]
-*.class
+*$py.class
 .Python
 env/
 build/
