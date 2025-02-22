@@ -1,10 +1,15 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 import random
+from datetime import timedelta
 
 app = Flask(__name__)
 app.config['ENV'] = os.environ.get('FLASK_ENV', 'development')
 app.config['DEBUG'] = app.config['ENV'] == 'development'
+# Set a secret key for session management - in production, use a secure random key
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev_key_replace_in_production')
+# Set session to expire after 24 hours of inactivity
+app.permanent_session_lifetime = timedelta(days=1)
 
 # Load words from a file
 def load_words():
@@ -45,81 +50,90 @@ SCORING = {
     9: 5000
 }
 
-# Initialize CURRENT_LETTERS with the shuffled nine_letter_word
-CURRENT_LETTERS = ''.join(letters).upper()
+def init_game_state():
+    """Initialize or reset game state"""
+    nine_letter_word = get_nine_letter_word(word_list)
+    letters = list(nine_letter_word)
+    random.shuffle(letters)
+    return {
+        'nine_letter_word': nine_letter_word,
+        'letters': letters,
+        'current_letters': ''.join(letters).upper(),
+        'found_words': [],
+        'score': 0
+    }
 
 @app.route('/')
 def index():
-    global CURRENT_LETTERS, score
-    if CURRENT_LETTERS is None:
-        # If somehow CURRENT_LETTERS is None, reinitialize it
-        letters = list(nine_letter_word)
-        random.shuffle(letters)
-        CURRENT_LETTERS = ''.join(letters).upper()
-    return render_template("index.html", letters=CURRENT_LETTERS, score=score)
+    # Make session permanent (but still expires after permanent_session_lifetime)
+    session.permanent = True
+    
+    # Initialize session state if needed
+    if 'game_state' not in session:
+        session['game_state'] = init_game_state()
+    
+    game_state = session['game_state']
+    return render_template("index.html", 
+                         letters=game_state['current_letters'],
+                         score=game_state['score'],
+                         foundWords=game_state['found_words'])
 
 @app.route('/shuffle', methods=['POST'])
 def shuffle():
-    global CURRENT_LETTERS
-    letters_list = list(CURRENT_LETTERS)
+    game_state = session['game_state']
+    letters_list = list(game_state['current_letters'])
     random.shuffle(letters_list)
     shuffled_letters = ''.join(letters_list)
-    CURRENT_LETTERS = shuffled_letters
+    game_state['current_letters'] = shuffled_letters
+    session.modified = True
     return jsonify({'letters': shuffled_letters})
 
 @app.route('/check', methods=['POST'])
 def check_word():
-    global score
+    game_state = session['game_state']
     data = request.get_json()
     word = data.get("word", "").strip().lower()
     
-    # Create response with found words
     def create_response(status, message):
         return jsonify({
             "status": status,
             "message": message,
-            "score": score,
-            "foundWords": list(found_words)  # Convert set to list for JSON
+            "score": game_state['score'],
+            "foundWords": game_state['found_words']
         })
     
-    if word == nine_letter_word:
-        score += SCORING[9]
+    if word == game_state['nine_letter_word']:
+        game_state['score'] += SCORING[9]
+        session.modified = True
         return create_response("win", "You found the 9-letter word!")
     
     if word not in word_list:
         return create_response("invalid", f"{word.upper()} not found in dictionary")
     
-    if not all(word.count(letter) <= letters.count(letter) for letter in set(word)):
+    if not all(word.count(letter) <= game_state['nine_letter_word'].count(letter) for letter in set(word)):
         return create_response("invalid", f"Can't make {word.upper()} with these letters")
     
-    if word in found_words:
+    if word.upper() in game_state['found_words']:
         return create_response("duplicate", f"Already found {word.upper()}")
     
     word_length = len(word)
     if word_length >= 3:
         points = SCORING.get(word_length, 0)
-        score += points
-        found_words.add(word.upper())  # Store words in uppercase
+        game_state['score'] += points
+        game_state['found_words'].append(word.upper())
+        session.modified = True
         return create_response("valid", f"Found: {word.upper()}! (+{points} points)")
     else:
         return create_response("invalid", "Words must be at least 3 letters long")
 
 @app.route('/new-game', methods=['POST'])
 def new_game():
-    global nine_letter_word, letters, CURRENT_LETTERS, found_words, score
-    
-    # Get a new word and reset game state
-    nine_letter_word = get_nine_letter_word(word_list)
-    letters = list(nine_letter_word)
-    random.shuffle(letters)
-    CURRENT_LETTERS = ''.join(letters).upper()
-    found_words = set()
-    score = 0
-    
+    session['game_state'] = init_game_state()
+    game_state = session['game_state']
     return jsonify({
-        'letters': CURRENT_LETTERS,
-        'score': score,
-        'foundWords': list(found_words)
+        'letters': game_state['current_letters'],
+        'score': game_state['score'],
+        'foundWords': game_state['found_words']
     })
 
 if __name__ == '__main__':

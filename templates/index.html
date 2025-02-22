@@ -329,6 +329,9 @@
                     submitWord();
                 }
             });
+
+            // Initialize found words on page load
+            updateFoundWords({{ foundWords|tojson }});
         });
 
         function updateFoundWords(foundWords) {
