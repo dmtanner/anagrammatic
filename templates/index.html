@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anagrammatic</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --background: #f8fafc;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            line-height: 1.5;
+        }
+
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .game-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .letters {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 0.5rem;
+            margin: 2rem 0;
+            color: var(--primary-dark);
+            min-height: 3rem;  /* Prevent layout shift when empty */
+        }
+
+        .letter {
+            display: inline-block;
+            transition: opacity 0.2s;
+        }
+
+        .letter.used {
+            opacity: 0.2;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-dark);
+        }
+
+        #result {
+            text-align: center;
+            min-height: 1.5rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background-color: #f1f5f9;
+        }
+
+        .score {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        input.invalid {
+            border-color: #ef4444;
+            background-color: #fee2e2;
+        }
+
+        .found-words {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .found-words h2 {
+            color: var(--primary);
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .word-groups {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .word-group {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+
+        .word-group h3 {
+            color: var(--primary-dark);
+            font-size: 1rem;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .word-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+    </style>
+    <script>
+        let availableLetters = [];
+
+        function initializeLetters() {
+            const lettersDiv = document.getElementById("letters");
+            const letters = lettersDiv.textContent.trim().split('');
+            lettersDiv.textContent = '';  // Clear the div
+            
+            letters.forEach(letter => {
+                const span = document.createElement('span');
+                span.textContent = letter;
+                span.className = 'letter';
+                span.dataset.letter = letter;
+                lettersDiv.appendChild(span);
+            });
+            
+            availableLetters = [...letters];
+        }
+
+        function updateAvailableLetters(inputValue) {
+            const letterElements = document.querySelectorAll('.letter');
+            const inputLetters = inputValue.toUpperCase().split('');
+            const wordInput = document.getElementById("wordInput");
+            
+            // Reset all letters to unused
+            letterElements.forEach(el => el.classList.remove('used'));
+            
+            // Count available letters
+            const availableLetterCounts = {};
+            letterElements.forEach(el => {
+                const letter = el.dataset.letter;
+                availableLetterCounts[letter] = (availableLetterCounts[letter] || 0) + 1;
+            });
+            
+            // Count input letters and check validity
+            const inputLetterCounts = {};
+            let isValid = true;
+            
+            inputLetters.forEach(letter => {
+                inputLetterCounts[letter] = (inputLetterCounts[letter] || 0) + 1;
+                if (!availableLetterCounts[letter] || inputLetterCounts[letter] > availableLetterCounts[letter]) {
+                    isValid = false;
+                }
+            });
+            
+            // Update input styling based on validity
+            wordInput.classList.toggle('invalid', !isValid && inputValue.length > 0);
+            
+            // Mark used letters
+            inputLetters.forEach(inputLetter => {
+                const unusedLetterEl = Array.from(letterElements)
+                    .find(el => !el.classList.contains('used') && el.dataset.letter === inputLetter);
+                if (unusedLetterEl) {
+                    unusedLetterEl.classList.add('used');
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeLetters();
+            
+            const wordInput = document.getElementById("wordInput");
+            wordInput.addEventListener("input", function(event) {
+                updateAvailableLetters(this.value);
+            });
+
+            wordInput.addEventListener("keypress", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitWord();
+                }
+            });
+        });
+
+        function updateFoundWords(foundWords) {
+            const container = document.getElementById('foundWords');
+            if (!foundWords || foundWords.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            // Group words by length
+            const wordsByLength = {};
+            foundWords.forEach(word => {
+                const len = word.length;
+                if (!wordsByLength[len]) wordsByLength[len] = [];
+                wordsByLength[len].push(word);
+            });
+
+            // Sort lengths in descending order
+            const lengths = Object.keys(wordsByLength).sort((a, b) => b - a);
+
+            // Create HTML
+            const groups = lengths.map(len => `
+                <div class="word-group">
+                    <h3>${len}-Letter Words</h3>
+                    <ul class="word-list">
+                        ${wordsByLength[len].sort().map(word => `<li>${word}</li>`).join('')}
+                    </ul>
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <h2>Found Words</h2>
+                <div class="word-groups">
+                    ${groups}
+                </div>
+            `;
+            container.style.display = 'block';
+        }
+
+        async function submitWord() {
+            const word = document.getElementById("wordInput").value;
+            const response = await fetch("/check", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ word })
+            });
+            const result = await response.json();
+            const resultElement = document.getElementById("result");
+            resultElement.innerText = result.message;
+            
+            document.getElementById("score").innerText = result.score;
+            
+            if (result.status === "win") {
+                resultElement.style.backgroundColor = "#bbf7d0";
+                alert("You won! Refresh to play again.");
+            } else if (result.status === "valid") {
+                resultElement.style.backgroundColor = "#bfdbfe";
+            } else if (result.status === "duplicate") {
+                resultElement.style.backgroundColor = "#fde68a";
+            } else {
+                resultElement.style.backgroundColor = "#fecaca";
+            }
+            
+            // Update found words list
+            if (result.foundWords) {
+                updateFoundWords(result.foundWords);
+            }
+            
+            document.getElementById("wordInput").value = "";
+            updateAvailableLetters("");
+        }
+
+        async function shuffleLetters() {
+            const response = await fetch("/shuffle", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            const result = await response.json();
+            document.getElementById("letters").textContent = result.letters;
+            initializeLetters();  // Reinitialize letter elements after shuffle
+            updateAvailableLetters(document.getElementById("wordInput").value);
+        }
+    </script>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Anagrammatic</h1>
+        <div class="score">Score: <span id="score">0</span></div>
+        <p>Use these letters to form words:</p>
+        <div id="letters" class="letters">{{ letters }}</div>
+        <div class="input-group">
+            <input type="text" id="wordInput" placeholder="Enter a word" autocomplete="off">
+            <button onclick="submitWord()">Submit</button>
+            <button onclick="shuffleLetters()">Shuffle</button>
+        </div>
+        <p id="result"></p>
+        <div id="foundWords" class="found-words"></div>
+    </div>
+</body>
+</html>
