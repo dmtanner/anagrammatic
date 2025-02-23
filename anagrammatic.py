@@ -29,7 +29,9 @@ def load_words():
 # Get a random 9-letter word
 def get_nine_letter_word(word_list):
     nine_letter_words = [word for word in word_list if len(word) == 9]
-    return random.choice(nine_letter_words) if nine_letter_words else None
+    word = random.choice(nine_letter_words) if nine_letter_words else None
+    print(f"Selected 9-letter word: {word}")
+    return word
 
 
 word_list = load_words()
