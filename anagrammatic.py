@@ -58,6 +58,7 @@ class Player:
     score: int = 0
     found_words: list = None
     ready: bool = False
+    name: str = None
 
     def __post_init__(self):
         if self.found_words is None:
@@ -251,14 +252,20 @@ def emit_game_state(game_room):
             "timeRemaining": game_room.time_remaining,
             "gameOver": game_room.game_over,
             "winner": game_room.winner,
-            "scores": {pid: p.score for pid, p in game_room.players.items()},
+            "scores": {
+                pid: {
+                    "name": p.name or f"Player {pid[-4:]}",  # Add name to scores
+                    "score": p.score,
+                }
+                for pid, p in game_room.players.items()
+            },
             "score": player.score,
             "foundWords": player.found_words,
             "letters": game_room.current_letters,
             "roomId": game_room.id,
         }
 
-        print(f"Emitting state to {player_id}:", game_state)  # Debug print
+        print(f"Emitting state to {player_id}:", game_state)
         socketio.emit("game_state", game_state, room=player_id)
 
 
@@ -402,6 +409,24 @@ def shuffle():
     game_room.current_letters = shuffled_letters
 
     return jsonify({"letters": shuffled_letters})
+
+
+@app.route("/update-name", methods=["POST"])
+def update_name():
+    player_id = session["player_id"]
+    name = request.json.get("name", f"Player {player_id[-4:]}")
+
+    # Store name in session
+    session["player_name"] = name
+
+    # Update name in any active game
+    for game_room in game_rooms.values():
+        if player_id in game_room.players:
+            game_room.players[player_id].name = name
+            emit_game_state(game_room)
+            break
+
+    return jsonify({"status": "success"})
 
 
 if __name__ == "__main__":

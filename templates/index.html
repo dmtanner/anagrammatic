@@ -283,6 +283,21 @@
                 font-size: 1.8rem;
             }
         }
+
+        /* Add styles for name input */
+        .name-input {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .name-input input {
+            max-width: 200px;
+            margin: 0 auto;
+            padding: 0.5rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
@@ -532,9 +547,17 @@
 
         function updateScores(scores) {
             const scoreBoard = document.getElementById("scoreboard");
-            scoreBoard.innerHTML = Object.entries(scores)
-                .map(([playerId, score]) => `Player ${playerId}: ${score}`)
-                .join(' | ');
+            
+            // Split scores into current player and opponent
+            const currentPlayerScore = scores[session_id];
+            const opponentScore = Object.entries(scores).find(([id]) => id !== session_id)?.[1];
+            
+            if (!currentPlayerScore || !opponentScore) {
+                return;  // Don't update if we don't have both scores
+            }
+            
+            // Always show current player on the left
+            scoreBoard.innerHTML = `${currentPlayerScore.name}: ${currentPlayerScore.score} | ${opponentScore.name}: ${opponentScore.score}`;
         }
 
         function handleGameOver(winner) {
@@ -543,9 +566,14 @@
             document.getElementById("timer").innerText = "Game Over!";
             
             const resultElement = document.getElementById("result");
-            const scores = Object.entries(currentGameState.scores || {})
-                .map(([playerId, score]) => `Player ${playerId}: ${score} points`)
-                .join(' | ');
+            
+            // Get current player and opponent scores
+            const currentPlayerScore = currentGameState.scores[session_id];
+            const opponentScore = Object.entries(currentGameState.scores || {})
+                .find(([id]) => id !== session_id)?.[1];
+            
+            // Format scores with current player first
+            const scores = `${currentPlayerScore.name}: ${currentPlayerScore.score} points | ${opponentScore.name}: ${opponentScore.score} points`;
             
             let message;
             if (winner === "tie") {
@@ -687,11 +715,39 @@
             // Start new matchmaking
             joinGame();
         }
+
+        async function updateName() {
+            const nameInput = document.getElementById("playerName");
+            const name = nameInput.value.trim() || `Player ${session_id.slice(-4)}`;
+            nameInput.value = name;
+            
+            try {
+                const response = await fetch("/update-name", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to update name');
+                }
+            } catch (error) {
+                console.error('Error updating name:', error);
+            }
+        }
     </script>
 </head>
 <body>
     <div class="game-container">
         <h1>Anagrammatic</h1>
+        <div class="name-input">
+            <input type="text" 
+                   id="playerName" 
+                   placeholder="Enter your name" 
+                   maxlength="20"
+                   value="{{ session['player_name'] if 'player_name' in session else 'Player ' + session['player_id'][-4:] }}"
+                   onchange="updateName()">
+        </div>
         <div class="score">Score: <span id="score">0</span></div>
         <p class="instructions">Use these letters to form words:</p>
         <div id="letters" class="letters">{{ letters }}</div>
