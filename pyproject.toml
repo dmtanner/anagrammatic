@@ -1,15 +1,23 @@
 [tool.poetry]
 name = "anagrammatic"
 version = "0.1.0"
-description = "A word game where players find as many words as possible using a given set of letters."
+description = "A multiplayer word game"
 authors = ["Your Name <your.email@example.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-flask = "^2.0"
-gunicorn = "^21.2.0"
+flask = "^2.0.0"
+flask-socketio = "^5.3.0"
+python-socketio = "^5.8.0"
+eventlet = "0.30.2"  # Using a specific version that works with modern SSL
+gunicorn = "^20.1.0"  # For production deployment
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+black = "^22.0.0"
+flake8 = "^4.0.0"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

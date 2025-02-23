@@ -90,6 +90,16 @@
             background-color: var(--primary-dark);
         }
 
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #94a3b8;  /* slate-400 */
+        }
+
+        button:disabled:hover {
+            background-color: #94a3b8;  /* Keep the same color on hover when disabled */
+        }
+
         #result {
             text-align: center;
             min-height: 1.5rem;
@@ -169,6 +179,23 @@
             border-radius: 0.5rem;
             border: 1px solid #e2e8f0;
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .timer {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin: 1rem 0;
+        }
+
+        .scoreboard {
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 1rem 0;
+            padding: 0.5rem;
+            background-color: #f8fafc;
+            border-radius: 0.5rem;
         }
 
         /* Mobile responsiveness */
@@ -257,8 +284,74 @@
             }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
+        // Move session_id to top for global access
+        const session_id = {{ session['player_id']|tojson|safe }};
+        const initial_game = {{ current_game|tojson|safe if current_game else 'null' }};
+
+        let socket;
         let availableLetters = [];
+        let currentGameState = {
+            roomId: null,
+            letters: null,
+            foundWords: [],
+            score: 0,
+            timeRemaining: 120,
+            scores: {}
+        };
+
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', () => {
+                console.log('Connected to server');
+            });
+            
+            socket.on('game_state', (state) => {
+                console.log('Received game state:', state);  // Debug log
+                
+                // Update game state
+                currentGameState = {
+                    ...currentGameState,
+                    ...state,
+                    timeRemaining: state.timeRemaining,
+                    scores: state.scores,
+                    score: state.score,
+                    foundWords: state.foundWords || [],
+                    letters: state.letters,
+                    roomId: state.roomId
+                };
+                
+                // Update UI
+                document.getElementById("score").innerText = state.score;
+                if (state.timeRemaining !== undefined) {
+                    currentGameState.timeRemaining = state.timeRemaining;
+                    const minutes = Math.floor(state.timeRemaining / 60);
+                    const seconds = Math.floor(state.timeRemaining % 60);
+                    const timerElement = document.getElementById("timer");
+                    if (timerElement.innerText !== `${minutes}:${seconds.toString().padStart(2, '0')}`) {
+                        timerElement.innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                }
+                
+                if (state.letters && state.letters !== document.getElementById("letters").textContent) {
+                    document.getElementById("letters").textContent = state.letters;
+                    initializeLetters();
+                }
+                
+                updateFoundWords(state.foundWords || []);
+                updateScores(state.scores);
+                
+                if (state.gameOver) {
+                    handleGameOver(state.winner);
+                }
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+            });
+        }
 
         function initializeLetters() {
             const lettersDiv = document.getElementById("letters");
@@ -315,9 +408,61 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeLetters();
+        function parseGameState(currentGame) {
+            if (!currentGame) return null;
             
+            // Convert ISO string to Date object if start_time exists
+            const timeRemaining = currentGame.time_remaining;
+            
+            return {
+                roomId: currentGame.room_id,
+                letters: currentGame.letters,
+                foundWords: currentGame.found_words,
+                score: currentGame.score,
+                timeRemaining: timeRemaining,
+                gameStarted: currentGame.game_started,
+                gameOver: currentGame.game_over,
+                winner: currentGame.winner
+            };
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocket();
+            initializeUI();
+            
+            if (initial_game) {
+                // Restore existing game state
+                currentGameState = {
+                    roomId: initial_game.room_id,
+                    letters: initial_game.letters,
+                    foundWords: initial_game.found_words || [],
+                    score: initial_game.score || 0,
+                    timeRemaining: initial_game.time_remaining,
+                    gameStarted: initial_game.game_started,
+                    gameOver: initial_game.game_over,
+                    winner: initial_game.winner
+                };
+                
+                // Update UI with current game state
+                document.getElementById("letters").textContent = initial_game.letters;
+                document.getElementById("score").innerText = initial_game.score;
+                updateFoundWords(initial_game.found_words);
+                initializeLetters();
+                
+                if (initial_game.game_over) {
+                    handleGameOver(initial_game.winner);
+                } else if (initial_game.game_started) {
+                    document.querySelector(".new-game-btn").disabled = true;
+                    startGame(initial_game.time_remaining);
+                } else {
+                    markReady();
+                }
+            } else {
+                joinGame();
+            }
+        });
+
+        function initializeUI() {
             const wordInput = document.getElementById("wordInput");
             wordInput.addEventListener("input", function(event) {
                 updateAvailableLetters(this.value);
@@ -330,9 +475,96 @@
                 }
             });
 
-            // Initialize found words on page load
-            updateFoundWords({{ foundWords|tojson }});
-        });
+            // Initialize found words display
+            updateFoundWords([]);
+        }
+
+        async function joinGame() {
+            const response = await fetch("/join-game", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            const result = await response.json();
+            
+            if (result.status === 'matched') {
+                currentGameState.roomId = result.room_id;
+                currentGameState.letters = result.letters;
+                document.getElementById("letters").textContent = result.letters;
+                initializeLetters();
+                // Disable New Game button as soon as matched
+                document.querySelector(".new-game-btn").disabled = true;
+                markReady();
+            } else {
+                document.getElementById("result").innerText = result.message;
+                setTimeout(joinGame, 1000);
+            }
+        }
+
+        async function markReady() {
+            const response = await fetch("/ready", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ room_id: currentGameState.roomId })
+            });
+            const result = await response.json();
+            
+            if (result.status === 'started') {
+                startGame(result.timeRemaining);
+            } else {
+                document.getElementById("result").innerText = result.message;
+                setTimeout(() => markReady(), 1000);
+            }
+        }
+
+        function startGame(duration) {
+            currentGameState.timeRemaining = duration;
+            updateTimer();
+            document.querySelector(".new-game-btn").disabled = true;
+            // No need to start polling
+        }
+
+        function updateTimer() {
+            const minutes = Math.floor(currentGameState.timeRemaining / 60);
+            const seconds = Math.floor(currentGameState.timeRemaining % 60);
+            document.getElementById("timer").innerText = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function updateScores(scores) {
+            const scoreBoard = document.getElementById("scoreboard");
+            scoreBoard.innerHTML = Object.entries(scores)
+                .map(([playerId, score]) => `Player ${playerId}: ${score}`)
+                .join(' | ');
+        }
+
+        function handleGameOver(winner) {
+            // Stop the timer
+            currentGameState.timeRemaining = 0;
+            document.getElementById("timer").innerText = "Game Over!";
+            
+            const resultElement = document.getElementById("result");
+            const scores = Object.entries(currentGameState.scores || {})
+                .map(([playerId, score]) => `Player ${playerId}: ${score} points`)
+                .join(' | ');
+            
+            let message;
+            if (winner === "tie") {
+                message = `Game Over - It's a tie!\n${scores}`;
+            } else if (winner === session_id) {
+                message = `Congratulations - You won!\n${scores}`;
+            } else {
+                message = `Game Over - Your opponent won!\n${scores}`;
+            }
+            
+            resultElement.innerText = message;
+            resultElement.style.whiteSpace = 'pre-line';
+            resultElement.style.backgroundColor = winner === session_id ? "#bbf7d0" : "#fecaca";
+            
+            // Disable input and most buttons, but enable New Game
+            document.getElementById("wordInput").disabled = true;
+            document.querySelectorAll("button:not(.new-game-btn)").forEach(btn => btn.disabled = true);
+            document.querySelector(".new-game-btn").disabled = false;
+        }
 
         function updateFoundWords(foundWords) {
             const container = document.getElementById('foundWords');
@@ -376,28 +608,29 @@
             const response = await fetch("/check", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ word })
+                body: JSON.stringify({ 
+                    word,
+                    room_id: currentGameState.roomId
+                })
             });
             const result = await response.json();
+            
+            if (result.status === 'game_over') {
+                return;  // Game state will be updated via socket
+            }
+
             const resultElement = document.getElementById("result");
             resultElement.innerText = result.message;
             
-            document.getElementById("score").innerText = result.score;
-            
+            // Set background color based on status
             if (result.status === "win") {
-                resultElement.style.backgroundColor = "#bbf7d0";
-                alert("You won! Refresh to play again.");
+                resultElement.style.backgroundColor = "#bbf7d0";  // green
             } else if (result.status === "valid") {
-                resultElement.style.backgroundColor = "#bfdbfe";
+                resultElement.style.backgroundColor = "#bfdbfe";  // blue
             } else if (result.status === "duplicate") {
-                resultElement.style.backgroundColor = "#fde68a";
+                resultElement.style.backgroundColor = "#fde68a";  // yellow
             } else {
-                resultElement.style.backgroundColor = "#fecaca";
-            }
-            
-            // Update found words list
-            if (result.foundWords) {
-                updateFoundWords(result.foundWords);
+                resultElement.style.backgroundColor = "#fecaca";  // red
             }
             
             document.getElementById("wordInput").value = "";
@@ -407,11 +640,18 @@
         async function shuffleLetters() {
             const response = await fetch("/shuffle", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ room_id: currentGameState.roomId })
             });
             const result = await response.json();
+            
+            if (result.error) {
+                document.getElementById("result").innerText = result.error;
+                return;
+            }
+            
             document.getElementById("letters").textContent = result.letters;
-            initializeLetters();  // Reinitialize letter elements after shuffle
+            initializeLetters();
             updateAvailableLetters(document.getElementById("wordInput").value);
         }
 
@@ -422,16 +662,30 @@
             });
             const result = await response.json();
             
-            // Update UI with new game state
-            document.getElementById("letters").textContent = result.letters;
-            document.getElementById("score").innerText = result.score;
-            document.getElementById("result").innerText = "";
+            // Reset game state
+            currentGameState = {
+                roomId: null,
+                letters: null,
+                foundWords: [],
+                score: 0,
+                timeRemaining: 120
+            };
+            
+            // Clear UI
+            document.getElementById("score").innerText = "0";
+            document.getElementById("result").innerText = result.message;
             document.getElementById("result").style.backgroundColor = "#f1f5f9";
             document.getElementById("wordInput").value = "";
+            document.getElementById("timer").innerText = "2:00";
+            document.getElementById("scoreboard").innerText = "";
+            document.getElementById("foundWords").style.display = "none";
             
-            // Reinitialize letters display
-            initializeLetters();
-            updateFoundWords(result.foundWords);
+            // Enable all controls
+            document.getElementById("wordInput").disabled = false;
+            document.querySelectorAll("button").forEach(btn => btn.disabled = false);
+            
+            // Start new matchmaking
+            joinGame();
         }
     </script>
 </head>
@@ -449,6 +703,8 @@
         </div>
         <p id="result"></p>
         <div id="foundWords" class="found-words"></div>
+        <div id="timer" class="timer">2:00</div>
+        <div id="scoreboard" class="scoreboard"></div>
     </div>
 </body>
 </html>
