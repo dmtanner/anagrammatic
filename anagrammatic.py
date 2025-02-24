@@ -253,16 +253,16 @@ def emit_game_state(game_room):
             "gameOver": game_room.game_over,
             "winner": game_room.winner,
             "scores": {
-                pid: {
-                    "name": p.name or f"Player {pid[-4:]}",  # Add name to scores
-                    "score": p.score,
-                }
+                pid: {"name": p.name or f"Player {pid[-4:]}", "score": p.score}
                 for pid, p in game_room.players.items()
             },
             "score": player.score,
             "foundWords": player.found_words,
             "letters": game_room.current_letters,
             "roomId": game_room.id,
+            "nineLetterWord": game_room.nine_letter_word.upper()
+            if game_room.game_over
+            else None,
         }
 
         print(f"Emitting state to {player_id}:", game_state)
@@ -302,18 +302,33 @@ def ready():
 def check_word():
     try:
         player_id = session["player_id"]
-        room_id = request.json.get("room_id")
-        game_room = game_rooms.get(room_id)
+        data = request.get_json()
+        if not data:
+            print("No JSON data received in check endpoint")
+            return jsonify({"error": "No data received", "status": "error"}), 400
 
-        if not game_room or player_id not in game_room.players:
+        room_id = data.get("room_id")
+        if not room_id:
+            print(f"No room_id provided by player {player_id}")
+            return jsonify({"error": "No room ID provided", "status": "error"}), 400
+
+        game_room = game_rooms.get(room_id)
+        if not game_room:
+            print(f"Invalid room {room_id} for player {player_id}")
             return jsonify({"error": "Invalid game room", "status": "error"}), 400
+
+        if player_id not in game_room.players:
+            print(f"Player {player_id} not in room {room_id}")
+            return jsonify({"error": "Player not in game room", "status": "error"}), 400
 
         if game_room.check_game_over():
             emit_game_state(game_room)  # Emit final state
             return jsonify({"status": "game_over", "message": "Game is over"})
 
         player = game_room.players[player_id]
-        word = request.json.get("word", "").strip().lower()
+        word = data.get("word", "").strip().lower()
+
+        print(f"Player {player_id} checking word '{word}' in room {room_id}")
 
         # Check word validity
         if word == game_room.nine_letter_word:

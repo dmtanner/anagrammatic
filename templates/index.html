@@ -643,11 +643,11 @@
             
             let message;
             if (winner === "tie") {
-                message = `Game Over - It's a tie!\n${scores}`;
+                message = `Game Over - It's a tie!\n${scores}\nThe 9-letter word was: ${currentGameState.nineLetterWord}`;
             } else if (winner === session_id) {
-                message = `Congratulations - You won!\n${scores}`;
+                message = `Congratulations - You won!\n${scores}\nThe 9-letter word was: ${currentGameState.nineLetterWord}`;
             } else {
-                message = `Game Over - Your opponent won!\n${scores}`;
+                message = `Game Over - Your opponent won!\n${scores}\nThe 9-letter word was: ${currentGameState.nineLetterWord}`;
             }
             
             resultElement.innerText = message;
@@ -699,36 +699,57 @@
 
         async function submitWord() {
             const word = document.getElementById("wordInput").value;
-            const response = await fetch("/check", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    word,
-                    room_id: currentGameState.roomId
-                })
-            });
-            const result = await response.json();
             
-            if (result.status === 'game_over') {
-                return;  // Game state will be updated via socket
+            if (!currentGameState.roomId) {
+                console.error('No room ID available');
+                document.getElementById("result").innerText = "Error: Not in a game room";
+                return;
             }
+            
+            try {
+                const response = await fetch("/check", {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({ 
+                        word,
+                        room_id: currentGameState.roomId
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.status === 'game_over') {
+                    return;  // Game state will be updated via socket
+                }
 
-            const resultElement = document.getElementById("result");
-            resultElement.innerText = result.message;
-            
-            // Set background color based on status
-            if (result.status === "win") {
-                resultElement.style.backgroundColor = "#bbf7d0";  // green
-            } else if (result.status === "valid") {
-                resultElement.style.backgroundColor = "#bfdbfe";  // blue
-            } else if (result.status === "duplicate") {
-                resultElement.style.backgroundColor = "#fde68a";  // yellow
-            } else {
-                resultElement.style.backgroundColor = "#fecaca";  // red
+                const resultElement = document.getElementById("result");
+                resultElement.innerText = result.message;
+                
+                // Set background color based on status
+                if (result.status === "win") {
+                    resultElement.style.backgroundColor = "#bbf7d0";  // green
+                } else if (result.status === "valid") {
+                    resultElement.style.backgroundColor = "#bfdbfe";  // blue
+                } else if (result.status === "duplicate") {
+                    resultElement.style.backgroundColor = "#fde68a";  // yellow
+                } else {
+                    resultElement.style.backgroundColor = "#fecaca";  // red
+                }
+                
+                document.getElementById("wordInput").value = "";
+                updateAvailableLetters("");
+            } catch (error) {
+                console.error('Error submitting word:', error);
+                document.getElementById("result").innerText = "Error submitting word";
+                document.getElementById("result").style.backgroundColor = "#fecaca";
             }
-            
-            document.getElementById("wordInput").value = "";
-            updateAvailableLetters("");
         }
 
         async function shuffleLetters() {
