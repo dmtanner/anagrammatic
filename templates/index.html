@@ -190,12 +190,47 @@
         }
 
         .scoreboard {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .player-score {
             text-align: center;
-            font-size: 1.2rem;
-            margin: 1rem 0;
-            padding: 0.5rem;
-            background-color: #f8fafc;
-            border-radius: 0.5rem;
+            color: white;
+            padding: 1rem 2rem;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            backdrop-filter: blur(4px);
+        }
+        
+        .player-score.current {
+            background-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+        
+        .player-score .name {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .player-score .score {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .vs {
+            align-self: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         /* Mobile responsiveness */
@@ -269,6 +304,27 @@
                 font-size: 1rem;
                 padding: 0.6rem;
                 margin: 1rem 0;
+            }
+
+            .scoreboard {
+                padding: 1rem;
+                gap: 1rem;
+            }
+            
+            .player-score {
+                padding: 0.75rem 1.5rem;
+            }
+            
+            .player-score .name {
+                font-size: 1rem;
+            }
+            
+            .player-score .score {
+                font-size: 1.5rem;
+            }
+            
+            .vs {
+                font-size: 1.25rem;
             }
         }
 
@@ -556,8 +612,18 @@
                 return;  // Don't update if we don't have both scores
             }
             
-            // Always show current player on the left
-            scoreBoard.innerHTML = `${currentPlayerScore.name}: ${currentPlayerScore.score} | ${opponentScore.name}: ${opponentScore.score}`;
+            // Create HTML with new styling
+            scoreBoard.innerHTML = `
+                <div class="player-score current">
+                    <div class="name">${currentPlayerScore.name}</div>
+                    <div class="score">${currentPlayerScore.score}</div>
+                </div>
+                <div class="vs">VS</div>
+                <div class="player-score">
+                    <div class="name">${opponentScore.name}</div>
+                    <div class="score">${opponentScore.score}</div>
+                </div>
+            `;
         }
 
         function handleGameOver(winner) {
