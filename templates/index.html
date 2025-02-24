@@ -202,27 +202,34 @@
         
         .player-score {
             text-align: center;
-            color: white;
+            color: white;  /* Full white for better visibility */
             padding: 1rem 2rem;
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: rgba(0, 0, 0, 0.3);  /* Darker background for better contrast */
             border-radius: 0.75rem;
             backdrop-filter: blur(4px);
+            transition: all 0.3s ease;
+            min-width: 120px;  /* Ensure consistent width */
         }
         
         .player-score.current {
-            background-color: rgba(255, 255, 255, 0.2);
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            background-color: rgba(255, 255, 255, 0.2);  /* Lighter for current player */
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.3);  /* Add subtle border */
         }
         
         .player-score .name {
             font-size: 1.25rem;
             font-weight: bold;
             margin-bottom: 0.5rem;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);  /* Stronger text shadow */
+            color: rgba(255, 255, 255, 0.95);  /* Slightly off-white */
         }
         
         .player-score .score {
             font-size: 2rem;
             font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);  /* Stronger text shadow */
+            color: white;  /* Pure white for scores */
         }
         
         .vs {
@@ -230,7 +237,8 @@
             color: white;
             font-size: 1.5rem;
             font-weight: bold;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            opacity: 0.9;  /* Slightly dimmed */
         }
 
         /* Mobile responsiveness */
